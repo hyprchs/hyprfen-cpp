@@ -22,21 +22,6 @@ constexpr std::uint8_t kWhiteQueenside = 1u << 1;
 constexpr std::uint8_t kBlackKingside = 1u << 2;
 constexpr std::uint8_t kBlackQueenside = 1u << 3;
 
-struct BoardState {
-    std::uint64_t occupied = 0;
-    std::uint64_t white_occupied = 0;
-    std::uint64_t pawns = 0;
-    std::uint64_t knights = 0;
-    std::uint64_t bishops = 0;
-    std::uint64_t rooks = 0;
-    std::uint64_t queens = 0;
-    bool white_to_move = true;
-    std::uint8_t castling_bits = 0;
-    std::optional<std::uint8_t> ep_file;
-    std::uint64_t halfmove_clock = 0;
-    std::uint64_t fullmove_number = 1;
-};
-
 [[nodiscard]] std::vector<std::string_view> split_fields(std::string_view text) {
     std::vector<std::string_view> fields;
     std::size_t pos = 0;
@@ -229,7 +214,7 @@ private:
     std::size_t offset_bits_ = 0;
 };
 
-void set_piece(BoardState& board, int square, char piece) {
+void set_piece(Components& board, int square, char piece) {
     const std::uint64_t bit = bit_for_square(square);
     board.occupied |= bit;
     switch (piece) {
@@ -278,13 +263,13 @@ void set_piece(BoardState& board, int square, char piece) {
     }
 }
 
-[[nodiscard]] BoardState parse_fen(std::string_view fen) {
+[[nodiscard]] Components parse_fen(std::string_view fen) {
     const std::vector<std::string_view> fields = split_fields(fen);
     if (fields.size() != 6) {
         throw Error("expected 6 FEN fields");
     }
 
-    BoardState board;
+    Components board;
 
     {
         const std::string_view placement = fields[0];
@@ -363,6 +348,7 @@ void set_piece(BoardState& board, int square, char piece) {
             throw Error("invalid en-passant square");
         }
         board.ep_file = static_cast<std::uint8_t>(fields[3][0] - 'a');
+        board.has_ep_file = true;
     }
 
     board.halfmove_clock = parse_u64(fields[4], "halfmove clock");
@@ -374,7 +360,7 @@ void set_piece(BoardState& board, int square, char piece) {
 }
 
 [[nodiscard]] std::vector<std::uint8_t> encode_state(
-    const BoardState& board,
+    const Components& board,
     EncodeStats* stats_out = nullptr
 ) {
     BitWriter writer;
@@ -395,9 +381,9 @@ void set_piece(BoardState& board, int square, char piece) {
 
     writer.write_bool(board.white_to_move);
     writer.write_bits(board.castling_bits, 4);
-    writer.write_bool(board.ep_file.has_value());
-    if (board.ep_file.has_value()) {
-        writer.write_bits(*board.ep_file, 3);
+    writer.write_bool(board.has_ep_file);
+    if (board.has_ep_file) {
+        writer.write_bits(board.ep_file, 3);
     }
     writer.write_varuint(board.halfmove_clock);
     writer.write_varuint(board.fullmove_number);
@@ -473,7 +459,8 @@ void set_piece(BoardState& board, int square, char piece) {
     std::uint64_t queens,
     bool white_to_move,
     std::uint8_t castling_bits,
-    std::optional<std::uint8_t> ep_file,
+    bool has_ep_file,
+    std::uint8_t ep_file,
     std::uint64_t halfmove_clock,
     std::uint64_t fullmove_number
 ) {
@@ -514,8 +501,8 @@ void set_piece(BoardState& board, int square, char piece) {
     }
 
     out << ' ' << (white_to_move ? 'w' : 'b') << ' ' << castling_string(castling_bits) << ' ';
-    if (ep_file.has_value()) {
-        out << static_cast<char>('a' + *ep_file) << (white_to_move ? '6' : '3');
+    if (has_ep_file) {
+        out << static_cast<char>('a' + ep_file) << (white_to_move ? '6' : '3');
     } else {
         out << '-';
     }
@@ -526,40 +513,45 @@ void set_piece(BoardState& board, int square, char piece) {
 }  // namespace
 
 std::vector<std::uint8_t> encode_fen(std::string_view fen) {
-    const BoardState board = parse_fen(fen);
+    const Components board = parse_fen(fen);
     return encode_state(board);
 }
 
-std::string decode_fen(std::span<const std::uint8_t> data) {
+Components decode_components(std::span<const std::uint8_t> data) {
     BitReader reader(data);
 
-    const std::uint64_t occupied = reader.read_bits(64);
-    const std::size_t n_occupied = static_cast<std::size_t>(popcount(occupied));
+    Components components{};
+    components.occupied = reader.read_bits(64);
+    const std::size_t n_occupied = static_cast<std::size_t>(popcount(components.occupied));
 
-    const std::uint64_t white_occupied = pdep(reader.read_bits(n_occupied), occupied);
-    const std::uint64_t pawns = pdep(reader.read_bits(n_occupied), occupied);
+    components.white_occupied = pdep(reader.read_bits(n_occupied), components.occupied);
+    components.pawns = pdep(reader.read_bits(n_occupied), components.occupied);
 
-    std::uint64_t remainder = occupied & ~pawns;
-    const std::uint64_t knights = pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
-    remainder &= ~knights;
-    const std::uint64_t bishops = pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
-    remainder &= ~bishops;
-    const std::uint64_t rooks = pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
-    remainder &= ~rooks;
-    const std::uint64_t queens = pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
+    std::uint64_t remainder = components.occupied & ~components.pawns;
+    components.knights =
+        pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
+    remainder &= ~components.knights;
+    components.bishops =
+        pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
+    remainder &= ~components.bishops;
+    components.rooks =
+        pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
+    remainder &= ~components.rooks;
+    components.queens =
+        pdep(reader.read_bits(static_cast<std::size_t>(popcount(remainder))), remainder);
 
-    const bool white_to_move = reader.read_bool();
-    const std::uint8_t castling_bits = static_cast<std::uint8_t>(reader.read_bits(4));
-    std::optional<std::uint8_t> ep_file;
+    components.white_to_move = reader.read_bool();
+    components.castling_bits = static_cast<std::uint8_t>(reader.read_bits(4));
     if (reader.read_bool()) {
         const std::uint64_t raw_ep_file = reader.read_bits(3);
         if (raw_ep_file > 7) {
             throw MalformedEncodingError("invalid en-passant file");
         }
-        ep_file = static_cast<std::uint8_t>(raw_ep_file);
+        components.ep_file = static_cast<std::uint8_t>(raw_ep_file);
+        components.has_ep_file = true;
     }
-    const std::uint64_t halfmove_clock = reader.read_varuint();
-    const std::uint64_t fullmove_number = reader.read_varuint();
+    components.halfmove_clock = reader.read_varuint();
+    components.fullmove_number = reader.read_varuint();
 
     const std::size_t remaining = reader.remaining_bits();
     if (remaining > 7) {
@@ -569,27 +561,37 @@ std::string decode_fen(std::span<const std::uint8_t> data) {
         throw MalformedEncodingError("non-zero padding bits found at end of stream");
     }
 
+    return components;
+}
+
+std::string decode_fen(std::span<const std::uint8_t> data) {
+    const Components components = decode_components(data);
     return decode_state_to_fen(
-        occupied,
-        white_occupied,
-        pawns,
-        knights,
-        bishops,
-        rooks,
-        queens,
-        white_to_move,
-        castling_bits,
-        ep_file,
-        halfmove_clock,
-        fullmove_number
+        components.occupied,
+        components.white_occupied,
+        components.pawns,
+        components.knights,
+        components.bishops,
+        components.rooks,
+        components.queens,
+        components.white_to_move,
+        components.castling_bits,
+        components.has_ep_file,
+        components.ep_file,
+        components.halfmove_clock,
+        components.fullmove_number
     );
 }
 
 EncodeStats encoding_stats(std::string_view fen) {
-    const BoardState board = parse_fen(fen);
+    const Components board = parse_fen(fen);
     EncodeStats stats{};
     static_cast<void>(encode_state(board, &stats));
     return stats;
+}
+
+std::vector<std::uint8_t> encode_components(const Components& components) {
+    return encode_state(components);
 }
 
 }  // namespace hyprfen

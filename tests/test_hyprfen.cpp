@@ -80,6 +80,11 @@ int main() {
         expect(encoded.size() == test_case.bytes, "unexpected encoded byte length");
         expect(to_hex(encoded) == test_case.hex, "encoded bytes do not match Python reference");
         expect(hyprfen::decode_fen(encoded) == test_case.fen, "round-trip decode mismatch");
+        const hyprfen::Components components = hyprfen::decode_components(encoded);
+        expect(
+            hyprfen::decode_fen(hyprfen::encode_components(components)) == test_case.fen,
+            "component round-trip mismatch"
+        );
         const hyprfen::EncodeStats stats = hyprfen::encoding_stats(test_case.fen);
         expect(stats.encoded_bytes == encoded.size(), "encoding_stats encoded_bytes mismatch");
         expect(stats.encoded_bits >= encoded.size() * 8 - 7, "encoding_stats encoded_bits mismatch");
