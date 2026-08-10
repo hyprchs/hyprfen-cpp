@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <span>
@@ -27,6 +28,28 @@ std::string to_hex(std::span<const std::uint8_t> bytes) {
     return out.str();
 }
 
+std::vector<std::uint8_t> from_hex(std::string_view hex) {
+    if (hex.size() % 2 != 0) {
+        throw std::runtime_error("hex input must have an even length");
+    }
+    const auto hex_digit = [](char ch) -> std::uint8_t {
+        if (ch >= '0' && ch <= '9') {
+            return static_cast<std::uint8_t>(ch - '0');
+        }
+        if (ch >= 'a' && ch <= 'f') {
+            return static_cast<std::uint8_t>(ch - 'a' + 10);
+        }
+        throw std::runtime_error("invalid hex digit");
+    };
+
+    std::vector<std::uint8_t> bytes;
+    bytes.reserve(hex.size() / 2);
+    for (std::size_t i = 0; i < hex.size(); i += 2) {
+        bytes.push_back(static_cast<std::uint8_t>((hex_digit(hex[i]) << 4) | hex_digit(hex[i + 1])));
+    }
+    return bytes;
+}
+
 void expect(bool condition, std::string_view message) {
     if (!condition) {
         throw std::runtime_error(std::string(message));
@@ -44,9 +67,40 @@ void expect_throws(Fn&& fn, std::string_view message) {
     expect(threw, message);
 }
 
+void test_bitstream_vectors(std::string_view path) {
+    std::ifstream input{std::string(path)};
+    expect(input.good(), "could not open bitstream vector file");
+
+    std::size_t line_number = 0;
+    std::size_t cases = 0;
+    std::string line;
+    while (std::getline(input, line)) {
+        ++line_number;
+        if (!line.empty() && line.front() == '#') {
+            continue;
+        }
+        const std::size_t separator = line.find('\t');
+        if (separator == std::string::npos) {
+            throw std::runtime_error("invalid bitstream vector at line " + std::to_string(line_number));
+        }
+        const std::string_view fen(line.data(), separator);
+        const std::vector<std::uint8_t> expected = from_hex(
+            std::string_view(line.data() + separator + 1, line.size() - separator - 1)
+        );
+        const std::vector<std::uint8_t> encoded = hyprfen::encode_fen(fen);
+        if (hyprfen::decode_fen(expected) != fen || encoded != expected ||
+            hyprfen::decode_fen(encoded) != fen) {
+            throw std::runtime_error("bitstream compatibility mismatch at line " +
+                                     std::to_string(line_number));
+        }
+        ++cases;
+    }
+    expect(cases == 100'000, "unexpected bitstream vector count");
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
     const GoldenCase golden_cases[] = {
         {
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -120,6 +174,12 @@ int main() {
         },
         "non-zero padding bits should be rejected"
     );
+
+    if (argc == 2) {
+        test_bitstream_vectors(argv[1]);
+    } else {
+        expect(argc == 1, "expected at most one bitstream vector path");
+    }
 
     std::cout << "hyprfen_tests passed\n";
     return 0;

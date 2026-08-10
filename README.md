@@ -6,7 +6,7 @@
 > 
 > It is a compact, reversible binary codec for standard chess positions. You give it a FEN string, it gives you bytes, and `decode_fen()` returns the exact original FEN.
 
-This C++ implementation tests for bit-equivalent output to the Python implementation. That means you can encode with `hyprfen` and decode with `hyprfen-cpp` or vice versa to get back the same FEN.
+This C++ implementation checks byte-for-byte compatibility with the Python implementation across 100,000 unique FENs from the Lichess January 2013 standard-rated dump. That means you can encode with `hyprfen` and decode with `hyprfen-cpp` or vice versa to get back the same FEN.
 
 ## Build
 

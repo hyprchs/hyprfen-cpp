@@ -13,8 +13,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Download bitstream compatibility vectors
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/hyprfen-bitstreams_lichess-2013-01_100k.tsv" \
+            "https://github.com/hyprchs/hyprfen/releases/download/bitstream-compatibility-v1/hyprfen-bitstreams_lichess-2013-01_100k.tsv"
+          echo "2a20ca230d172db191d9981734a2e8d99a97ac9b8747604e5e40580a1650ba7f  $RUNNER_TEMP/hyprfen-bitstreams_lichess-2013-01_100k.tsv" | shasum -a 256 -c -
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHYPRFEN_BITSTREAM_VECTORS="$RUNNER_TEMP/hyprfen-bitstreams_lichess-2013-01_100k.tsv"
       - name: Build
         run: cmake --build build --config Release
       - name: Test
