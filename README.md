@@ -1,16 +1,12 @@
 # hyprfen-cpp
 
-`hyprfen-cpp` is a reusable C++ implementation of the `hyprfen` chess FEN codec.
+`hyprfen-cpp` is a C++ implementation of the Python package [`hyprfen`](https://github.com/hyprchs/hyprfen). From its readme:
 
-It encodes standard chess FENs into a compact binary representation and decodes
-them back into canonical standard FEN strings. The bitstream matches the Python
-reference implementation in [`hyprfen`](https://github.com/hyprchs/hyprfen).
+> `hyprfen` stores standard chess FENs in about **64.9% fewer bits** than raw FEN strings on a 100,000-position real-game sample from Lichess.
+> 
+> It is a compact, reversible binary codec for standard chess positions. You give it a FEN string, it gives you bytes, and `decode_fen()` returns the exact original FEN.
 
-## Status
-
-- Library API: implemented
-- CMake package/export metadata: implemented
-- Golden compatibility tests against the Python reference bitstream: implemented
+This C++ implementation tests for bit-equivalent output to the Python implementation. That means you can encode with `hyprfen` and decode with `hyprfen-cpp` or vice versa to get back the same FEN.
 
 ## Build
 
@@ -55,11 +51,3 @@ FetchContent_MakeAvailable(hyprfen)
 
 target_link_libraries(your_target PRIVATE hyprfen::hyprfen)
 ```
-
-## Notes
-
-- This codec supports standard chess FENs with standard `KQkq` castling notation.
-- The decoder emits canonical standard FEN strings.
-- The library is intentionally dependency-free beyond the C++ standard library.
-
-For Python-first workflows, use the reference implementation in `hyprfen`.
