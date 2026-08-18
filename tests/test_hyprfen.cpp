@@ -84,9 +84,13 @@ void test_bitstream_compatibility(std::string_view path) {
             throw std::runtime_error("invalid bitstream vector at line " + std::to_string(line_number));
         }
         const std::string_view fen(line.data(), separator);
-        const std::vector<std::uint8_t> expected = from_hex(
-            std::string_view(line.data() + separator + 1, line.size() - separator - 1)
-        );
+        std::vector<std::uint8_t> expected;
+        try {
+            expected = from_hex(std::string_view(line.data() + separator + 1, line.size() - separator - 1));
+        } catch (const std::exception& error) {
+            throw std::runtime_error("invalid bitstream vector at line " + std::to_string(line_number) +
+                                     ": " + error.what());
+        }
         const std::vector<std::uint8_t> encoded = hyprfen::encode_fen(fen);
         if (hyprfen::decode_fen(expected) != fen || encoded != expected ||
             hyprfen::decode_fen(encoded) != fen) {
