@@ -16,6 +16,16 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+CI also runs the 100,000-case bitstream compatibility test. To run it locally:
+
+```bash
+curl --fail --location --output /tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv \
+  https://github.com/hyprchs/hyprfen/releases/download/bitstream-compatibility-v1/hyprfen-bitstreams_lichess-2013-01_100k.tsv
+echo '2a20ca230d172db191d9981734a2e8d99a97ac9b8747604e5e40580a1650ba7f  /tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv' | shasum -a 256 -c -
+cmake -S . -B build -DHYPRFEN_BITSTREAM_VECTORS=/tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv
+ctest --test-dir build -R hyprfen_bitstream_compatibility --output-on-failure
+```
+
 ## Public API
 
 ```cpp
