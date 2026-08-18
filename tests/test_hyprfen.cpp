@@ -67,7 +67,7 @@ void expect_throws(Fn&& fn, std::string_view message) {
     expect(threw, message);
 }
 
-void test_bitstream_vectors(std::string_view path) {
+void test_bitstream_compatibility(std::string_view path) {
     std::ifstream input{std::string(path)};
     expect(input.good(), "could not open bitstream vector file");
 
@@ -176,7 +176,7 @@ int main(int argc, char* argv[]) {
     );
 
     if (argc == 2) {
-        test_bitstream_vectors(argv[1]);
+        test_bitstream_compatibility(argv[1]);
     } else {
         expect(argc == 1, "expected at most one bitstream vector path");
     }
