@@ -6,7 +6,7 @@
 > 
 > It is a compact, reversible binary codec for standard chess positions. You give it a FEN string, it gives you bytes, and `decode_fen()` returns the exact original FEN.
 
-This C++ implementation tests for bit-equivalent output to the Python implementation. That means you can encode with `hyprfen` and decode with `hyprfen-cpp` or vice versa to get back the same FEN.
+This C++ implementation checks byte-for-byte compatibility with the Python implementation across 100,000 unique FENs from the Lichess January 2013 standard-rated dump. That means you can encode with `hyprfen` and decode with `hyprfen-cpp` or vice versa to get back the same FEN.
 
 ## Build
 
@@ -14,6 +14,16 @@ This C++ implementation tests for bit-equivalent output to the Python implementa
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
+```
+
+CI also runs the 100,000-case bitstream compatibility test. To run it locally:
+
+```bash
+curl --fail --location --output /tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv \
+  https://github.com/hyprchs/hyprfen/releases/download/bitstream-compatibility-v1/hyprfen-bitstreams_lichess-2013-01_100k.tsv
+echo '2a20ca230d172db191d9981734a2e8d99a97ac9b8747604e5e40580a1650ba7f  /tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv' | shasum -a 256 -c -
+cmake -S . -B build -DHYPRFEN_BITSTREAM_VECTORS=/tmp/hyprfen-bitstreams_lichess-2013-01_100k.tsv
+ctest --test-dir build -R hyprfen_bitstream_compatibility --output-on-failure
 ```
 
 ## Public API

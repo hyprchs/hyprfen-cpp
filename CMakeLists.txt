@@ -28,6 +28,14 @@ if(BUILD_TESTING)
     )
     target_link_libraries(hyprfen_tests PRIVATE hyprfen::hyprfen)
     add_test(NAME hyprfen_tests COMMAND hyprfen_tests)
+
+    set(HYPRFEN_BITSTREAM_VECTORS "" CACHE FILEPATH "Path to hyprfen bitstream compatibility vectors")
+    if(HYPRFEN_BITSTREAM_VECTORS)
+        add_test(
+            NAME hyprfen_bitstream_compatibility
+            COMMAND hyprfen_tests "${HYPRFEN_BITSTREAM_VECTORS}"
+        )
+    endif()
 endif()
 
 install(
